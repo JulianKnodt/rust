@@ -7,6 +7,7 @@ use super::{from_fn, LoopState};
 use super::{DoubleEndedIterator, ExactSizeIterator, FusedIterator, Iterator, TrustedLen};
 
 mod chain;
+mod chunks;
 mod flatten;
 mod fuse;
 mod zip;

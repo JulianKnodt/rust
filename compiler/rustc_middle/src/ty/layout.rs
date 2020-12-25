@@ -171,12 +171,31 @@ pub enum LayoutError<'tcx> {
     SizeOverflow(Ty<'tcx>),
 }
 
+fn type_depth<'tcx>(ty: Ty<'tcx>) -> usize {
+    ty.walk().count()
+}
+
 impl<'tcx> fmt::Display for LayoutError<'tcx> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             LayoutError::Unknown(ty) => write!(f, "the type `{}` has an unknown layout", ty),
             LayoutError::SizeOverflow(ty) => {
-                write!(f, "values of the type `{}` are too big for the current architecture", ty)
+                let depth = type_depth(ty);
+                const MAX_PRINT_DEPTH: usize = 1 << 13;
+                if depth > MAX_PRINT_DEPTH {
+                    write!(
+                        f,
+                        "deeply-nested type of `{}` of depth {} are too big for the current architecture",
+                        ty.prefix_string(),
+                        depth,
+                    )
+                } else {
+                    write!(
+                        f,
+                        "values of the type `{}` are too big for the current architecture",
+                        ty
+                    )
+                }
             }
         }
     }

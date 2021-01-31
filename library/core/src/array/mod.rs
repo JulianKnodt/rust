@@ -575,4 +575,21 @@ impl<T, const N: usize> [T; N] {
         // `MaybeUninit<T>` has the same layout as `T`, so this cast is valid.
         unsafe { (&mut out as *mut _ as *mut [&mut T; N]).read() }
     }
+
+    /// Reshapes this 1 dimensional vector as a 2 dimensional matrix
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// #![feature(array_methods)]
+    ///
+    /// let mut floats = [3.1, 2.7, -1.0, 0.0];
+    /// let mut mat = floats.reshape::<2,2>();
+    /// assert_eq!(mat, [[3.1, 2.7], [-1.0, 0.0]]);
+    /// ```
+    #[unstable(feature = "none", issue = "none")]
+    pub fn reshape<const X: usize, const Y: usize>(self) -> [[T; X]; Y] {
+        assert_eq!(X * Y, N);
+        unsafe { crate::mem::transmute_copy(&self) }
+    }
 }

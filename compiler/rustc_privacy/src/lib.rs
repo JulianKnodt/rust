@@ -1224,6 +1224,11 @@ impl<'tcx> Visitor<'tcx> for TypePrivacyVisitor<'tcx> {
                 }
             }
         } else {
+            let local_id = self.tcx.hir().local_def_id(inf.hir_id);
+            if self.tcx.opt_const_param_of(local_id).is_some() {
+                todo!();
+            }
+
             // FIXME see above note for same issue.
             if self.visit(rustc_typeck::hir_ty_to_ty(self.tcx, &inf.to_ty())).is_break() {
                 return;

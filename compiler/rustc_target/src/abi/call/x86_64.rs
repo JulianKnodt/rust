@@ -1,5 +1,5 @@
 // The classification code for the x86_64 ABI is taken from the clay language
-// https://github.com/jckarter/clay/blob/master/compiler/src/externals.cpp
+// https://github.com/jckarter/clay/blob/master/compiler/externals.cpp
 
 use crate::abi::call::{ArgAbi, CastTarget, FnAbi, Reg, RegKind};
 use crate::abi::{self, Abi, HasDataLayout, LayoutOf, Size, TyAndLayout, TyAndLayoutMethods};
@@ -9,11 +9,16 @@ use crate::abi::{self, Abi, HasDataLayout, LayoutOf, Size, TyAndLayout, TyAndLay
 // such that `unify(a, b)` is the "smaller" of `a` and `b`.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 enum Class {
+    /// Int represents a scalar integer
     Int,
+    /// Sse represents the lower half or start of an SSE vector
     Sse,
+    /// SseUp represents the upper half of an SSE register
     SseUp,
 }
 
+/// Memory is an error value indicating that arguments must be passed on stack, and cannot be
+/// used in registers.
 #[derive(Clone, Copy, Debug)]
 struct Memory;
 
@@ -21,6 +26,73 @@ struct Memory;
 const LARGEST_VECTOR_SIZE: usize = 512;
 const MAX_EIGHTBYTES: usize = LARGEST_VECTOR_SIZE / 64;
 
+/// Classify classifies cx as either an x86 class, or returns an error indicating that it must
+/// be passed through memory.
+fn classify<'a, Ty, C>(
+    cx: &C,
+    layout: TyAndLayout<'a, Ty>,
+    cls: &mut [Option<Class>],
+    offset: Size,
+) -> Result<(), Memory>
+where
+    Ty: TyAndLayoutMethods<'a, C> + Copy,
+    C: LayoutOf<Ty = Ty, TyAndLayout = TyAndLayout<'a, Ty>> + HasDataLayout,
+{
+    if !offset.is_aligned(layout.align.abi) {
+        if !layout.is_zst() {
+            return Err(Memory);
+        }
+        return Ok(());
+    }
+
+    let mut c = match layout.abi {
+        Abi::Uninhabited => return Ok(()),
+
+        Abi::Scalar(ref scalar) => match scalar.value {
+            abi::Int(..) | abi::Pointer => Class::Int,
+            abi::F32 | abi::F64 => Class::Sse,
+        },
+
+        Abi::Vector { .. } => Class::Sse,
+
+        Abi::ScalarPair(..) | Abi::Aggregate { .. } => {
+            for i in 0..layout.fields.count() {
+                let field_off = offset + layout.fields.offset(i);
+                classify(cx, layout.field(cx, i), cls, field_off)?;
+            }
+
+            match &layout.variants {
+                abi::Variants::Single { .. } => {}
+                abi::Variants::Multiple { variants, .. } => {
+                    // Treat enum variants like union members.
+                    for variant_idx in variants.indices() {
+                        classify(cx, layout.for_variant(cx, variant_idx), cls, offset)?;
+                    }
+                }
+            }
+
+            return Ok(());
+        }
+    };
+
+    // Fill in `cls` for scalars (Int/Sse) and vectors (Sse).
+    let first = (offset.bytes() / 8) as usize;
+    let last = ((offset.bytes() + layout.size.bytes() - 1) / 8) as usize;
+    for cl in &mut cls[first..=last] {
+        *cl = Some(cl.map_or(c, |old| old.min(c)));
+
+        // Everything after the first Sse "eightbyte"
+        // component is the upper half of a register.
+        if c == Class::Sse {
+            c = Class::SseUp;
+        }
+    }
+
+    Ok(())
+}
+
+// classifies an argument, returning either a sized register, or indicates that it must be in
+// memory.
 fn classify_arg<'a, Ty, C>(
     cx: &C,
     arg: &ArgAbi<'a, Ty>,
@@ -29,72 +101,11 @@ where
     Ty: TyAndLayoutMethods<'a, C> + Copy,
     C: LayoutOf<Ty = Ty, TyAndLayout = TyAndLayout<'a, Ty>> + HasDataLayout,
 {
-    fn classify<'a, Ty, C>(
-        cx: &C,
-        layout: TyAndLayout<'a, Ty>,
-        cls: &mut [Option<Class>],
-        off: Size,
-    ) -> Result<(), Memory>
-    where
-        Ty: TyAndLayoutMethods<'a, C> + Copy,
-        C: LayoutOf<Ty = Ty, TyAndLayout = TyAndLayout<'a, Ty>> + HasDataLayout,
-    {
-        if !off.is_aligned(layout.align.abi) {
-            if !layout.is_zst() {
-                return Err(Memory);
-            }
-            return Ok(());
-        }
-
-        let mut c = match layout.abi {
-            Abi::Uninhabited => return Ok(()),
-
-            Abi::Scalar(ref scalar) => match scalar.value {
-                abi::Int(..) | abi::Pointer => Class::Int,
-                abi::F32 | abi::F64 => Class::Sse,
-            },
-
-            Abi::Vector { .. } => Class::Sse,
-
-            Abi::ScalarPair(..) | Abi::Aggregate { .. } => {
-                for i in 0..layout.fields.count() {
-                    let field_off = off + layout.fields.offset(i);
-                    classify(cx, layout.field(cx, i), cls, field_off)?;
-                }
-
-                match &layout.variants {
-                    abi::Variants::Single { .. } => {}
-                    abi::Variants::Multiple { variants, .. } => {
-                        // Treat enum variants like union members.
-                        for variant_idx in variants.indices() {
-                            classify(cx, layout.for_variant(cx, variant_idx), cls, off)?;
-                        }
-                    }
-                }
-
-                return Ok(());
-            }
-        };
-
-        // Fill in `cls` for scalars (Int/Sse) and vectors (Sse).
-        let first = (off.bytes() / 8) as usize;
-        let last = ((off.bytes() + layout.size.bytes() - 1) / 8) as usize;
-        for cls in &mut cls[first..=last] {
-            *cls = Some(cls.map_or(c, |old| old.min(c)));
-
-            // Everything after the first Sse "eightbyte"
-            // component is the upper half of a register.
-            if c == Class::Sse {
-                c = Class::SseUp;
-            }
-        }
-
-        Ok(())
-    }
-
     let n = ((arg.layout.size.bytes() + 7) / 8) as usize;
     if n > MAX_EIGHTBYTES {
         return Err(Memory);
+    } else if n == 0 {
+        return Ok([None; MAX_EIGHTBYTES]);
     }
 
     let mut cls = [None; MAX_EIGHTBYTES];
@@ -106,25 +117,27 @@ where
         if cls[1..n].iter().any(|&c| c != Some(Class::SseUp)) {
             return Err(Memory);
         }
-    } else {
-        let mut i = 0;
-        while i < n {
-            if cls[i] == Some(Class::SseUp) {
-                cls[i] = Some(Class::Sse);
-            } else if cls[i] == Some(Class::Sse) {
+        return Ok(cls);
+    }
+
+    let mut i = 0;
+    while i < n {
+        match cls[i] {
+            Some(Class::SseUp) => cls[i] = Some(Class::Sse),
+            Some(Class::Sse) => {
                 i += 1;
-                while i != n && cls[i] == Some(Class::SseUp) {
+                while i < n && cls[i] == Some(Class::SseUp) {
                     i += 1;
                 }
-            } else {
-                i += 1;
             }
+            None | Some(Class::Int) => i += 1,
         }
     }
 
     Ok(cls)
 }
 
+// converts x86 classes to the LLVM register ABI
 fn reg_component(cls: &[Option<Class>], i: &mut usize, size: Size) -> Option<Reg> {
     if *i >= cls.len() {
         return None;
@@ -156,8 +169,8 @@ fn reg_component(cls: &[Option<Class>], i: &mut usize, size: Size) -> Option<Reg
 fn cast_target(cls: &[Option<Class>], size: Size) -> CastTarget {
     let mut i = 0;
     let lo = reg_component(cls, &mut i, size).unwrap();
-    let offset = Size::from_bytes(8) * (i as u64);
     let mut target = CastTarget::from(lo);
+    let offset = Size::from_bytes(8) * (i as u64);
     if size > offset {
         if let Some(hi) = reg_component(cls, &mut i, size - offset) {
             target = CastTarget::pair(lo, hi);
@@ -170,6 +183,8 @@ fn cast_target(cls: &[Option<Class>], size: Size) -> CastTarget {
 const MAX_INT_REGS: usize = 6; // RDI, RSI, RDX, RCX, R8, R9
 const MAX_SSE_REGS: usize = 8; // XMM0-7
 
+// the information about C is returned in FnAbi, notably information about LLVM types returned,
+// and the arguments to functions.
 pub fn compute_abi_info<'a, Ty, C>(cx: &C, fn_abi: &mut FnAbi<'a, Ty>)
 where
     Ty: TyAndLayoutMethods<'a, C> + Copy,
@@ -227,7 +242,8 @@ where
                 // split into sized chunks passed individually
                 if arg.layout.is_aggregate() {
                     let size = arg.layout.size;
-                    arg.cast_to(cast_target(cls, size))
+                    let target = cast_target(cls, size);
+                    arg.cast_to(target);
                 } else {
                     arg.extend_integer_width_to(32);
                 }

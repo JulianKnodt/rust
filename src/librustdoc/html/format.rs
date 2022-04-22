@@ -322,6 +322,10 @@ crate fn print_where_clause<'a, 'tcx: 'a>(
                             write!(f, "{} == {}", lhs.print(cx), rhs.print(cx))
                         }
                     }
+                    clean::WherePredicate::ConstPredicate { expr: _ } => {
+                      write!(f, "const {{ {} }}", "TODO")?;
+                      todo!();
+                    }
                 }
             })
         }).peekable();

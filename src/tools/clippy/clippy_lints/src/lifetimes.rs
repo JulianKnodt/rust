@@ -476,6 +476,9 @@ fn has_where_lifetimes<'tcx>(cx: &LateContext<'tcx>, where_clause: &'tcx WhereCl
                     return true;
                 }
             },
+            WherePredicate::ConstPredicate(ref _pred) => {
+              todo!();
+            }
         }
     }
     false

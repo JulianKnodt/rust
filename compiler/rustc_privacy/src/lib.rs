@@ -1622,6 +1622,9 @@ impl<'a, 'tcx> Visitor<'tcx> for ObsoleteVisiblePrivateTypesVisitor<'a, 'tcx> {
                 hir::WherePredicate::EqPredicate(eq_pred) => {
                     self.visit_ty(eq_pred.rhs_ty);
                 }
+                hir::WherePredicate::ConstPredicate(cp) => {
+                    self.visit_anon_const(&cp.expr);
+                }
             }
         }
     }

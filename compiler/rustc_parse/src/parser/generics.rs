@@ -205,6 +205,17 @@ impl<'a> Parser<'a> {
         })
     }
 
+    /// Parses an optional const-expr where-clause.
+    ///
+    /// ```ignore (only-for-syntax-highlight)
+    /// where const { <expr>: bool } {
+    ///  ...
+    /// }
+    /// ```
+    pub fn check_where_expr(&mut self) -> bool {
+        return self.check(&token::Ident(kw::Const, true));
+    }
+
     /// Parses an optional where-clause and places it in `generics`.
     ///
     /// ```ignore (only-for-syntax-highlight)
@@ -252,6 +263,14 @@ impl<'a> Parser<'a> {
                 ));
             } else if self.check_type() {
                 where_clause.predicates.push(self.parse_ty_where_predicate()?);
+            } else if self.eat_keyword_noexpect(kw::Const) {
+                let const_predicate = self.parse_anon_const_expr()?;
+                where_clause.predicates.push(ast::WherePredicate::ConstPredicate(
+                    ast::WhereConstPredicate {
+                        span: lo.to(self.prev_token.span),
+                        expr: const_predicate,
+                    },
+                ));
             } else {
                 break;
             }

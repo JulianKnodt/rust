@@ -1556,6 +1556,12 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     span: self.lower_span(span),
                 })
             }
+            WherePredicate::ConstPredicate(WhereConstPredicate { ref expr, span }) => {
+                hir::WherePredicate::ConstPredicate(hir::WhereConstPredicate {
+                    expr: self.lower_anon_const(expr),
+                    span: self.lower_span(span),
+                })
+            }
         }
     }
 }

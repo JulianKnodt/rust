@@ -639,6 +639,8 @@ pub enum WherePredicate<'hir> {
     RegionPredicate(WhereRegionPredicate<'hir>),
     /// An equality predicate (unsupported).
     EqPredicate(WhereEqPredicate<'hir>),
+    /// A const predicate (e.g. `const { N == 3 }`)
+    ConstPredicate(WhereConstPredicate),
 }
 
 impl<'hir> WherePredicate<'hir> {
@@ -647,6 +649,7 @@ impl<'hir> WherePredicate<'hir> {
             WherePredicate::BoundPredicate(p) => p.span,
             WherePredicate::RegionPredicate(p) => p.span,
             WherePredicate::EqPredicate(p) => p.span,
+            WherePredicate::ConstPredicate(p) => p.span,
         }
     }
 }
@@ -692,6 +695,13 @@ pub struct WhereEqPredicate<'hir> {
     pub span: Span,
     pub lhs_ty: &'hir Ty<'hir>,
     pub rhs_ty: &'hir Ty<'hir>,
+}
+
+/// An equality predicate (e.g., `T = int`); currently unsupported.
+#[derive(Debug, HashStable_Generic)]
+pub struct WhereConstPredicate {
+    pub span: Span,
+    pub expr: AnonConst,
 }
 
 /// HIR node coupled with its parent's id in the same HIR owner.

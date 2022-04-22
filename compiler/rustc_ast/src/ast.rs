@@ -459,6 +459,8 @@ pub enum WherePredicate {
     RegionPredicate(WhereRegionPredicate),
     /// An equality predicate (unsupported).
     EqPredicate(WhereEqPredicate),
+    /// A const predicate (e.g. const { N == 2 }).
+    ConstPredicate(WhereConstPredicate),
 }
 
 impl WherePredicate {
@@ -467,6 +469,7 @@ impl WherePredicate {
             WherePredicate::BoundPredicate(p) => p.span,
             WherePredicate::RegionPredicate(p) => p.span,
             WherePredicate::EqPredicate(p) => p.span,
+            WherePredicate::ConstPredicate(p) => p.span,
         }
     }
 }
@@ -504,6 +507,13 @@ pub struct WhereEqPredicate {
     pub span: Span,
     pub lhs_ty: P<Ty>,
     pub rhs_ty: P<Ty>,
+}
+
+/// A const predicate (e.g. where const { N == 3 }).
+#[derive(Clone, Encodable, Decodable, Debug)]
+pub struct WhereConstPredicate {
+    pub span: Span,
+    pub expr: AnonConst,
 }
 
 #[derive(Clone, Encodable, Decodable, Debug)]

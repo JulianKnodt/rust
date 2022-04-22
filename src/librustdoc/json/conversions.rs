@@ -362,6 +362,9 @@ impl FromWithTcx<clean::WherePredicate> for WherePredicate {
             EqPredicate { lhs, rhs } => {
                 WherePredicate::EqPredicate { lhs: lhs.into_tcx(tcx), rhs: rhs.into_tcx(tcx) }
             }
+            ConstPredicate { expr: _ } => {
+              todo!();
+            }
         }
     }
 }

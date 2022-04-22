@@ -449,6 +449,10 @@ impl Rewrite for ast::WherePredicate {
                 let lhs_ty_str = lhs_ty.rewrite(context, shape).map(|lhs| lhs + " =")?;
                 rewrite_assign_rhs(context, lhs_ty_str, &**rhs_ty, &RhsAssignKind::Ty, shape)?
             }
+            ast::WherePredicate::ConstPredicate(ast::WhereConstPredicate {
+                ref expr,
+                ..
+            }) => expr.rewrite(context, shape)?,
         };
 
         Some(result)

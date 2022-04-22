@@ -275,6 +275,10 @@ impl Clean<WherePredicate> for hir::WherePredicate<'_> {
                 lhs: wrp.lhs_ty.clean(cx),
                 rhs: wrp.rhs_ty.clean(cx).into(),
             },
+
+            hir::WherePredicate::ConstPredicate(ref wcp) => WherePredicate::ConstPredicate {
+                expr: ty::Const::from_anon_const(cx.tcx, cx.tcx.hir().local_def_id(wcp.expr.body.hir_id)).clean(cx),
+            },
         }
     }
 }

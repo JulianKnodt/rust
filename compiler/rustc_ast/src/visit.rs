@@ -625,6 +625,9 @@ pub fn walk_where_predicate<'a, V: Visitor<'a>>(visitor: &mut V, predicate: &'a 
             visitor.visit_ty(lhs_ty);
             visitor.visit_ty(rhs_ty);
         }
+        WherePredicate::ConstPredicate(WhereConstPredicate { ref expr, .. }) => {
+            visitor.visit_anon_const(expr);
+        }
     }
 }
 

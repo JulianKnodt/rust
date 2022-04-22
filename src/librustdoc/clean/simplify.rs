@@ -30,6 +30,7 @@ crate fn where_clauses(cx: &DocContext<'_>, clauses: Vec<WP>) -> Vec<WP> {
     let mut lifetimes = Vec::new();
     let mut equalities = Vec::new();
     let mut tybounds = Vec::new();
+    let mut const_bounds = Vec::new();
 
     for clause in clauses {
         match clause {
@@ -45,6 +46,10 @@ crate fn where_clauses(cx: &DocContext<'_>, clauses: Vec<WP>) -> Vec<WP> {
                 lifetimes.push((lifetime, bounds));
             }
             WP::EqPredicate { lhs, rhs } => equalities.push((lhs, rhs)),
+            WP::ConstPredicate { expr } => {
+              const_bounds.push(expr);
+              todo!()
+            },
         }
     }
 

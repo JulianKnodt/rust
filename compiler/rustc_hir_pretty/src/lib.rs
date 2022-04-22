@@ -2236,6 +2236,12 @@ impl<'a> State<'a> {
                     self.word_space("=");
                     self.print_type(rhs_ty);
                 }
+                hir::WherePredicate::ConstPredicate(hir::WhereConstPredicate { expr, .. }) => {
+                    self.word_nbsp("const");
+                    self.word("{");
+                    self.print_anon_const(&expr);
+                    self.word("}");
+                }
             }
         }
     }

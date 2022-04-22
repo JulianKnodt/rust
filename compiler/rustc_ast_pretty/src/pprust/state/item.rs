@@ -637,6 +637,12 @@ impl<'a> State<'a> {
                 self.word_space("=");
                 self.print_type(rhs_ty);
             }
+            ast::WherePredicate::ConstPredicate(ast::WhereConstPredicate { .. }) => {
+                self.word_nbsp("const");
+                self.word("{");
+                self.word("<const expr>");
+                self.word("}");
+            }
         }
     }
 

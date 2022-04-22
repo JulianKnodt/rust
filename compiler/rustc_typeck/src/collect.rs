@@ -2358,6 +2358,9 @@ fn gather_explicit_predicates_of(tcx: TyCtxt<'_>, def_id: DefId) -> ty::GenericP
             hir::WherePredicate::EqPredicate(..) => {
                 // FIXME(#20041)
             }
+            hir::WherePredicate::ConstPredicate(_const_predicate) => {
+                todo!();
+            }
         }
     }
 

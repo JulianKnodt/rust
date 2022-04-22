@@ -148,6 +148,7 @@ impl Spanned for ast::WherePredicate {
             ast::WherePredicate::BoundPredicate(ref p) => p.span,
             ast::WherePredicate::RegionPredicate(ref p) => p.span,
             ast::WherePredicate::EqPredicate(ref p) => p.span,
+            ast::WherePredicate::ConstPredicate(ref p) => p.span,
         }
     }
 }

@@ -1404,6 +1404,10 @@ impl<'a, 'tcx> Visitor<'tcx> for LifetimeContext<'a, 'tcx> {
                         this.visit_lifetime(lifetime);
                         walk_list!(this, visit_param_bound, bounds);
                     }
+                    &hir::WherePredicate::ConstPredicate(hir::WhereConstPredicate {
+                        ref expr,
+                        ..
+                    }) => this.visit_anon_const(expr),
                     &hir::WherePredicate::EqPredicate(hir::WhereEqPredicate {
                         ref lhs_ty,
                         ref rhs_ty,

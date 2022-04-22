@@ -1257,6 +1257,7 @@ crate enum WherePredicate {
     BoundPredicate { ty: Type, bounds: Vec<GenericBound>, bound_params: Vec<Lifetime> },
     RegionPredicate { lifetime: Lifetime, bounds: Vec<GenericBound> },
     EqPredicate { lhs: Type, rhs: Term },
+    ConstPredicate { expr: Constant },
 }
 
 impl WherePredicate {

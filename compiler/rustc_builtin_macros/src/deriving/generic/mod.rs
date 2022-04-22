@@ -638,6 +638,13 @@ impl<'a> TraitDef<'a> {
                         ..we.clone()
                     })
                 }
+                ast::WherePredicate::ConstPredicate(wc) => {
+                    let span = wc.span.with_ctxt(ctxt);
+                    ast::WherePredicate::ConstPredicate(ast::WhereConstPredicate {
+                        span,
+                        ..wc.clone()
+                    })
+                }
             }
         }));
 

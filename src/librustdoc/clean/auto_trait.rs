@@ -544,6 +544,9 @@ impl<'a, 'tcx> AutoTraitFinder<'a, 'tcx> {
                 WherePredicate::RegionPredicate { lifetime, bounds } => {
                     lifetime_to_bounds.entry(lifetime).or_default().extend(bounds);
                 }
+                WherePredicate::ConstPredicate { expr: _ } => {
+                    todo!();
+                }
                 WherePredicate::EqPredicate { lhs, rhs } => {
                     match lhs {
                         Type::QPath { ref assoc, ref self_type, ref trait_, .. } => {

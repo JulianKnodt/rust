@@ -631,6 +631,11 @@ pub fn super_relate_consts<'tcx, R: TypeRelation<'tcx>>(
         b = b.eval(tcx, relation.param_env());
     }
 
+    if tcx.features().generic_const_exprs {
+        a = tcx.expand_abstract_consts(a);
+        b = tcx.expand_abstract_consts(b);
+    }
+
     // Currently, the values that can be unified are primitive types,
     // and those that derive both `PartialEq` and `Eq`, corresponding
     // to structural-match types.
@@ -646,19 +651,6 @@ pub fn super_relate_consts<'tcx, R: TypeRelation<'tcx>>(
         (ty::ConstKind::Param(a_p), ty::ConstKind::Param(b_p)) => a_p.index == b_p.index,
         (ty::ConstKind::Placeholder(p1), ty::ConstKind::Placeholder(p2)) => p1 == p2,
         (ty::ConstKind::Value(a_val), ty::ConstKind::Value(b_val)) => a_val == b_val,
-
-        (ty::ConstKind::Unevaluated(_au), ty::ConstKind::Unevaluated(_bu))
-            if tcx.features().generic_const_exprs =>
-        {
-            if let (Ok(Some(a)), Ok(Some(b))) = (
-                tcx.expand_abstract_consts(a),
-                tcx.expand_abstract_consts(b),
-            ) && a.ty() == b.ty() {
-                return relation.consts(a, b);
-            } else {
-                false
-            }
-        }
 
         // While this is slightly incorrect, it shouldn't matter for `min_const_generics`
         // and is the better alternative to waiting until `generic_const_exprs` can
@@ -681,7 +673,7 @@ pub fn super_relate_consts<'tcx, R: TypeRelation<'tcx>>(
         (ty::ConstKind::Expr(ae), ty::ConstKind::Expr(be)) => {
             let r = relation;
 
-            // FIXME(julianknodt): is it possible to relate two consts which are not identical
+            // FIXME(generic_const_exprs): is it possible to relate two consts which are not identical
             // exprs? Should we care about that?
             let expr = match (ae, be) {
                 (Expr::Binop(a_op, al, ar), Expr::Binop(b_op, bl, br))

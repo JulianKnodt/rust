@@ -3,7 +3,6 @@ use rustc_data_structures::fx::FxHashMap;
 use rustc_data_structures::obligation_forest::ProcessResult;
 use rustc_data_structures::obligation_forest::{Error, ForestObligation, Outcome};
 use rustc_data_structures::obligation_forest::{ObligationForest, ObligationProcessor};
-use rustc_hir::def::DefKind;
 use rustc_infer::traits::ProjectionCacheKey;
 use rustc_infer::traits::{SelectionError, TraitEngine, TraitEngineExt as _, TraitObligation};
 use rustc_middle::mir::interpret::ErrorHandled;
@@ -494,38 +493,43 @@ impl<'a, 'tcx> ObligationProcessor for FulfillProcessor<'a, 'tcx> {
                         tcx.features().generic_const_exprs,
                         "`ConstEquate` without a feature gate: {c1:?} {c2:?}",
                     );
-                    debug!(?c1, ?c2, "equating consts");
                     // FIXME: we probably should only try to unify abstract constants
                     // if the constants depend on generic parameters.
                     //
                     // Let's just see where this breaks :shrug:
-                    match (c1.kind(), c2.kind()) {
-                        (ty::ConstKind::Unevaluated(a), ty::ConstKind::Unevaluated(b)) => {
-                            if tcx.def_kind(a.def.did) == DefKind::AssocConst
-                                || tcx.def_kind(b.def.did) == DefKind::AssocConst
+                    {
+                        let c1 = tcx.expand_abstract_consts(c1);
+                        let c2 = tcx.expand_abstract_consts(c2);
+                        debug!("equating consts:\nc1= {:?}\nc2= {:?}", c1, c2);
+
+                        use rustc_hir::def::DefKind;
+                        use ty::ConstKind::Unevaluated;
+                        match (c1.kind(), c2.kind()) {
+                            (Unevaluated(a), Unevaluated(b))
+                                if a.def.did == b.def.did
+                                    && tcx.def_kind(a.def.did) == DefKind::AssocConst =>
                             {
-                                // Two different constants using generic parameters ~> error.
-                                let expected_found = ExpectedFound::new(true, c1, c2);
-                                return ProcessResult::Error(
-                                    FulfillmentErrorCode::CodeConstEquateError(
-                                        expected_found,
-                                        TypeError::ConstMismatch(expected_found),
-                                    ),
-                                );
-                            }
-                            if let (Ok(Some(a)), Ok(Some(b))) = (
-                                    tcx.expand_abstract_consts(c1),
-                                    tcx.expand_abstract_consts(c2),
-                                ) && a.ty() == b.ty() &&
-                                  let Ok(new_obligations) = infcx
-                                      .at(&obligation.cause, obligation.param_env)
-                                      .eq(a, b) {
-                                            return ProcessResult::Changed(mk_pending(
-                                                new_obligations.into_obligations(),
-                                            ));
+                                if let Ok(new_obligations) = infcx
+                                    .at(&obligation.cause, obligation.param_env)
+                                    .trace(c1, c2)
+                                    .eq(a.substs, b.substs)
+                                {
+                                    return ProcessResult::Changed(mk_pending(
+                                        new_obligations.into_obligations(),
+                                    ));
                                 }
+                            }
+                            (_, Unevaluated(_)) | (Unevaluated(_), _) => (),
+                            (_, _) => {
+                                if let Ok(new_obligations) =
+                                    infcx.at(&obligation.cause, obligation.param_env).eq(c1, c2)
+                                {
+                                    return ProcessResult::Changed(mk_pending(
+                                        new_obligations.into_obligations(),
+                                    ));
+                                }
+                            }
                         }
-                        _ => {}
                     }
 
                     let stalled_on = &mut pending_obligation.stalled_on;
